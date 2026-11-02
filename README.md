@@ -6,7 +6,7 @@ Browse an example island to explore the app, or open your own exported save fold
 
 Built for Mac, with a familiar interface and no extra software to install.
 
-Current Mac version: **2.0**. Requires **macOS 14 or later**. Universal builds support Apple silicon and Intel. Supported save revisions: **ACNH 3.0.0–3.0.3**.
+Current Mac version: **2.1**. Requires **macOS 14 or later**. Universal builds support Apple silicon and Intel. Supported save revisions: **ACNH 3.0.0–3.0.3**.
 
 ## Download and install
 
@@ -20,7 +20,13 @@ Requires macOS 14 or later. One download supports both Apple silicon and Intel. 
 
 **First launch:** this build is ad-hoc signed and has not been notarized by Apple. If macOS blocks it and you trust this download, open **System Settings → Privacy & Security → Open Anyway** after attempting to launch it. See [Apple's first-launch instructions](https://support.apple.com/102445). A launch without this approval requires Developer ID signing and notarization, which are not yet available for this project.
 
-## New in 2.0
+## New in 2.1
+
+- Select **Plaza** in the map’s Buildings tab to move it independently of Resident Services, with an upper-left anchor and size guide.
+- Change existing bridges between eight styles while preserving their span, straight/diagonal geometry, position, and rotation. The matching bridge material updates automatically.
+- Plaza and bridge-style edits support review, undo/redo, revert, save, and export.
+
+## Also included from 2.0
 
 - Recognizable outdoor objects using bundled NHSE inventory artwork, plus 14 illustrated building categories and size guides where dimensions are verified.
 - Centered, continuous pinch zoom from 100% to 500%, with five slider presets and sharp artwork at high zoom.
@@ -49,7 +55,7 @@ Keep a separate copy of your original save and close the game before importing c
 
 ### Feature comparison
 
-This compares NHSE with **Animal Crossing Save Editor for Mac 2.0**. “Limited” means the Mac app implements only the scope described below.
+This compares NHSE with **Animal Crossing Save Editor for Mac 2.1**. “Limited” means the Mac app implements only the scope described below.
 
 | Feature | NHSE | Animal Crossing Save Editor for Mac |
 | --- | --- | --- |
@@ -68,6 +74,8 @@ This compares NHSE with **Animal Crossing Save Editor for Mac 2.0**. “Limited�
 | Shoreline and base-acre editing | Available | **Not implemented:** existing shoreline and acres are preserved |
 | Outdoor item placement and removal | Available | Available, including both item layers, linked item footprints, keyboard copy/paste/delete, and tile snapping |
 | Building positions | Building editor | **Limited:** distinct building artwork and available size guides; move and rotate existing buildings; collision and bridge/incline connections need manual checking |
+| Plaza position | Separate plaza coordinates | Available in the Buildings tab; moves independently of Resident Services |
+| Bridge styles | Bridge model and material fields | Eight standard styles; preserves span and geometry, and updates matching material |
 | Animal-villager identity and basic details | Available | **Limited:** existing villagers; identity, personality, catchphrase, moving-out state, and basic friendship |
 | Villager-file import/export, flags, and detailed memories | Available | **Not implemented:** no full villager/preset replacement or advanced flag/memory editor |
 | Player and villager house interiors | House and room editors | **Not implemented:** existing interiors are preserved |

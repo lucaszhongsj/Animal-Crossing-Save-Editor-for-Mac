@@ -258,3 +258,12 @@ Native interface checks confirmed an ordinary click at 100% selecting terrain (5
 All 80 tests passed: 74 core tests and six native viewport/input tests. Three added regressions cover pointer targets independent of SwiftUI content shapes, magnified/panned screen-to-map coordinates at preset and fractional zoom, and mouse-down/drag/up delivery as a single stroke. The replacement remains version 2.0, with internal build number 15, as requested. Earlier physical-trackpad, Intel-execution and in-game verification limitations remain.
 
 The replacement universal DMG and ZIP passed package integrity and signature checks. Both identify as version 2.0 (15), contain identical executables, and preserve all 11 example-save manifest hashes.
+
+
+### Version 2.1 release — 2 November 2026
+
+Version 2.1 (build 16) adds independent plaza coordinate editing and eight standard bridge styles. Plaza tests verify the separate uint32 fields at 0x32FB40/0x32FB44, coordinate limits, upper-left map selection, and export/reopen with unrelated bytes preserved. Bridge tests cover all 54 NHSE models, geometry-preserving style changes, matching material values, invalid model/target rejection, and combined position/style export with unrelated bytes preserved. The preview controls were checked for plaza movement, undo/redo/revert, and bridge style selection and undo.
+
+All 88 automated tests passed: 82 core tests and six native map viewport/input tests. The universal release executable contains arm64 and x86_64; both have a macOS 14.0 minimum target. Ad-hoc signature verification passed for the app and the app inside the read-only mounted DMG. The DMG checksum and ZIP CRC checks passed. Both downloads identify as 2.1 (16), contain the same executable, and preserve all 11 bundled example-save manifest hashes. The DMG includes an Applications shortcut; SHA256SUMS.txt accompanies both download assets.
+
+Developer ID notarization, execution on Intel hardware, physical trackpad feel, exact in-game plaza/building anchor alignment, and importing edited saves back into the game remain manual checks. The guides do not enforce collision handling or relocate terrain, Resident Services, or outdoor objects automatically.

@@ -1,6 +1,6 @@
 # Animal Crossing Save Editor for Mac — Mac guide
 
-Version **2.0** — map artwork, building guides, continuous centered zoom, keyboard item editing, and the complete Yolo preview island.
+Version **2.1** — plaza movement and eight bridge styles, alongside map artwork, building guides, continuous centered zoom, keyboard item editing, and the complete Yolo preview island.
 
 An independent native SwiftUI macOS adaptation primarily based on [NHSE](https://github.com/kwsch/NHSE), using its save-format research and editor behavior. [cbreezy210/ACNH-Save-Editor](https://github.com/cbreezy210/ACNH-Save-Editor) provided the initial foundation and selected save-cryptography routines. Requires macOS 14 or later. The universal build supports Apple silicon and Intel Macs. Works offline without third-party runtimes.
 
