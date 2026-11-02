@@ -14,6 +14,7 @@ All measurements below are full terrain tiles. Two saved building-coordinate ste
 | Villager house | 4 × 4 | Includes front plot row, unlike the smaller visible model |
 | Nook's Cranny | 7 × 4 | Measured plot |
 | Resident Services building | 6 × 4 | Building only; plaza is separate |
+| Plaza | 12 × 10 | Upper-left anchor, edited separately from Resident Services |
 | Museum | 7 × 4 | Measured plot |
 | Airport | Not shown | Terminal, dock and acre boundaries need separate verification |
 | Resident Services tent | Not shown | Tent plot not independently verified |
@@ -32,7 +33,7 @@ All measurements below are full terrain tiles. Two saved building-coordinate ste
 
 Infrastructure artwork uses the editor's existing quarter-turn angle convention; diagonal bridge models add a 45-degree illustration turn. The correspondence of these illustration angles and per-model anchors to real game geometry still needs in-game validation. Unknown bridge types and diagonal bridges deliberately receive no invented rectangle. The icon's size is illustrative when a measured plot is unavailable.
 
-The plot guide does not alter saves, enforce collisions, repair bridge connections, or automatically move buildings. Bridge subtype bytes are read for visualization and remain unchanged when positions are edited. No inaccurate generic 2 × 2 footprint is advertised as exact.
+The plot guide does not alter saves, enforce collisions, repair bridge connections, or automatically move buildings. Bridge subtype bytes are read for visualization and remain unchanged when positions are edited. The Bridge style selector explicitly edits the subtype and matching material while preserving geometry. No inaccurate generic 2 × 2 footprint is advertised as exact.
 
 ## Sources
 
@@ -45,3 +46,17 @@ The plot guide does not alter saves, enforce collisions, repair bridge connectio
 ## Verification
 
 Native release build and signature verification passed. All 26 selected tests passed (building dimensions/subtypes, map coordinates, and island editing/export). The native example map was visually checked with all 14 categories, a selected house and its plot/spacing guides, and a selected hotel correctly labeled as having unverified dimensions. All PNGs have alpha channels; two generated originals have negligible 1/255 corner alpha. App icons are 256-pixel derivatives; full-resolution originals remain in `Icons/`.
+
+## Plaza save support
+
+The plaza is listed in the Buildings selector but is not inserted into the 46 saved building records. Original NHSE revision `cb0745415945776f73375bf0a434a8babf059307` stores `EventPlazaLeftUpX` and `EventPlazaLeftUpZ` as two little-endian uint32 values at `OutsideField + 9*8*2 + 4` and `+8`. For the supported 3.0 save layout these are absolute offsets `0x32FB40` and `0x32FB44`. The UI labels Z as Y, matching NHSE, and accepts 0–1024, matching its numeric controls. No rotation field exists. Moving the plaza leaves Resident Services and all building records untouched.
+
+The map shows a 12 × 10 tile rectangle from the saved upper-left anchor, using the half-tile map coordinate scale. Buildings take precedence when selecting overlapping markers; the Plaza selector always remains available. The rectangle is a guide, with in-game anchor alignment still requiring verification. It does not paint terrain or relocate objects. Positions outside the visible island remain editable through the inspector.
+
+Upstream references: [MainSave plaza fields](https://github.com/kwsch/NHSE/blob/cb0745415945776f73375bf0a434a8babf059307/NHSE.Core/Save/Files/MainSave.cs), [FieldItemEditor controls](https://github.com/kwsch/NHSE/blob/cb0745415945776f73375bf0a434a8babf059307/NHSE.WinForms/Subforms/Map/FieldItemEditor.cs), and [control limits](https://github.com/kwsch/NHSE/blob/cb0745415945776f73375bf0a434a8babf059307/NHSE.WinForms/Subforms/Map/FieldItemEditor.Designer.cs).
+
+## Bridge style editing
+
+`BridgeType.swift` maps NHSE's 54 defined bridge models to nine material families and six geometries (three straight spans and three diagonal model lengths). The eight standard families are offered for style changes; NHSE's reserved family is shown only when already present. Undefined types 50/51 and unknown models remain readable but cannot be restyled. A style change writes only `Building.Type` (record +8, uint16) and `Building.TypeArg` (+10, byte material), preserving position, angle, flags, padding, unique ID, and other records. Moving a bridge alone does not normalize its material. The existing generic bridge artwork remains illustrative; the map guide follows the edited model.
+
+References at the same NHSE revision: [BridgeType](https://github.com/kwsch/NHSE/blob/cb0745415945776f73375bf0a434a8babf059307/NHSE.Core/Structures/Building/BridgeType.cs), [BridgeMaterial](https://github.com/kwsch/NHSE/blob/cb0745415945776f73375bf0a434a8babf059307/NHSE.Core/Structures/Building/BridgeMaterial.cs), and [Building record](https://github.com/kwsch/NHSE/blob/cb0745415945776f73375bf0a434a8babf059307/NHSE.Core/Structures/Building/Building.cs).

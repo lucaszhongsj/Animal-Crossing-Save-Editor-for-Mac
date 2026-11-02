@@ -57,6 +57,36 @@ final class IslandEditorTests: XCTestCase {
         ])
         try session.ensureUnchanged()
     }
+    func testBridgeStyleAndPositionExportTogetherWithoutChangingOtherRecords() throws {
+        let session = try SaveSession(folder: folder)
+        let index = 9, offset = IslandLayout.buildings + index * IslandLayout.buildingSize
+        var draft = session.initial
+        draft.island.bridgeTypes[index] = 52 // Brick, five-tile straight span; material 11.
+        draft.island.buildings[index] = BuildingPosition(x: 151, y: 149, angle: 1)
+        let destination = root.appendingPathComponent("BridgeStyle")
+        try session.export(draft, to: destination)
+        let reopened = try SaveSession(folder: destination)
+        let bridge = IslandSnapshot(main: reopened.main).building(index)
+        XCTAssertEqual(bridge.subtype, 52)
+        XCTAssertEqual(bridge.position, draft.island.buildings[index])
+        XCTAssertEqual(reopened.main[offset + 10], 11)
+        XCTAssertEqual(BuildingFootprint.forBuilding(bridge)?.width, 7)
+        XCTAssertEqual(reopened.personal, session.personal)
+        assertOnlyChanges(session.main, reopened.main, ranges: [(offset + 2)..<(offset + 7), (offset + 8)..<(offset + 11)])
+        try session.ensureUnchanged()
+    }
+    func testPlazaExportReopensWithoutMovingResidentServices() throws {
+        let session = try SaveSession(folder: folder)
+        var draft = session.initial
+        draft.island.plaza = PlazaPosition(x: 111, y: 97)
+        let destination = root.appendingPathComponent("Plaza")
+        try session.export(draft, to: destination)
+        let reopened = try SaveSession(folder: destination)
+        XCTAssertEqual(IslandSnapshot(main: reopened.main).plaza(), draft.island.plaza)
+        XCTAssertEqual(reopened.personal, session.personal)
+        assertOnlyChanges(session.main, reopened.main, ranges: [IslandLayout.plaza..<(IslandLayout.plaza + 8)])
+        try session.ensureUnchanged()
+    }
     func testVillagerRoundTripPreservesHouseMemoriesAndMoveBits() throws {
         let session = try SaveSession(folder: folder), world = IslandSnapshot(main: session.main)
         var draft = session.initial, villager = world.villager(0)

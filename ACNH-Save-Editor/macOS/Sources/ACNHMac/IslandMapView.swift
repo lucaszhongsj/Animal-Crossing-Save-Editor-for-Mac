@@ -368,39 +368,94 @@ struct IslandMapView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Buildings").font(.title3.weight(.semibold))
             if let world = model.world {
-                let buildings = (0..<46).map { world.building($0, edits: edits) }.filter { $0.kind != 0 }
-                if buildings.isEmpty { Text("No buildings are present in this save.").foregroundStyle(.secondary) }
-                else {
+                let buildings = (0..<IslandLayout.buildingCount).map { world.building($0, edits: edits) }.filter { $0.kind != 0 }
+                Group {
                     Picker("Building", selection: $selectedBuilding) {
+                        Text("Plaza").tag(IslandLayout.plazaSelectionID)
                         ForEach(buildings) { building in Text("\(building.name) [\(building.id + 1)]").tag(building.id) }
                     }
-                    let index = buildings.contains(where: { $0.id == selectedBuilding }) ? selectedBuilding : buildings[0].id
-                    let building = world.building(index, edits: edits)
-                    HStack(spacing: 12) {
-                        BuildingIcon(kind: building.kind)
-                        Text(building.name).font(.headline)
-                    }
-                    if let footprint = BuildingFootprint.forBuilding(building) {
-                        Text("\(Int(footprint.width)) × \(Int(footprint.depth)) tile plot guide").font(.callout.weight(.medium))
-                        Text("Dashed outline: one-tile spacing guide.").font(.caption).foregroundStyle(.secondary)
-                        Text(footprint.note).font(.caption).foregroundStyle(.secondary)
+                    if selectedBuilding == IslandLayout.plazaSelectionID || buildings.isEmpty {
+                        plazaInspector(world)
                     } else {
-                        Text("Plot dimensions not verified for this structure. Icon size is illustrative.")
+                        let index = buildings.contains(where: { $0.id == selectedBuilding }) ? selectedBuilding : buildings[0].id
+                        let building = world.building(index, edits: edits)
+                        HStack(spacing: 12) {
+                            BuildingIcon(kind: building.kind)
+                            Text(building.name).font(.headline)
+                        }
+                        if let footprint = BuildingFootprint.forBuilding(building) {
+                            Text("\(Int(footprint.width)) × \(Int(footprint.depth)) tile plot guide").font(.callout.weight(.medium))
+                            Text("Dashed outline: one-tile spacing guide.").font(.caption).foregroundStyle(.secondary)
+                            Text(footprint.note).font(.caption).foregroundStyle(.secondary)
+                        } else {
+                            Text("Plot dimensions not verified for this structure. Icon size is illustrative.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        if building.kind == 26 { bridgeStyleInspector(building) }
+                        Toggle("Show plot guides", isOn: $showBuildingGuides).toggleStyle(.checkbox)
+                        Text("Coordinates in half tiles").font(.caption).foregroundStyle(.secondary)
+                        Stepper("X: \(building.position.x)", value: buildingBinding(index, \.x), in: 0...UInt16(IslandLayout.buildingWidth - 1))
+                        Stepper("Y: \(building.position.y)", value: buildingBinding(index, \.y), in: 0...UInt16(IslandLayout.buildingHeight - 1))
+                        Picker("Rotation", selection: Binding(get: { Int(building.position.angle) }, set: { value in
+                            model.change { draft in var p = building.position; p.angle = UInt8(value); draft.island.buildings[index] = p }
+                        })) { ForEach(0..<4) { Text("\($0 * 90)°").tag($0) } }
+                        if edits.buildings[index] != nil || edits.bridgeTypes[index] != nil {
+                            Button("Revert Building") { model.change {
+                                $0.island.buildings.removeValue(forKey: index)
+                                $0.island.bridgeTypes.removeValue(forKey: index)
+                            } }
+                        }
+                        Text("Each X or Y step moves the building half a terrain tile. Moving a building preserves its identity, interior, and other settings. Place it on clear, accessible land; collision and bridge/incline connections need manual checking.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
-                    Toggle("Show plot guides", isOn: $showBuildingGuides).toggleStyle(.checkbox)
-                    Text("Coordinates in half tiles").font(.caption).foregroundStyle(.secondary)
-                    Stepper("X: \(building.position.x)", value: buildingBinding(index, \.x), in: 0...UInt16(IslandLayout.buildingWidth - 1))
-                    Stepper("Y: \(building.position.y)", value: buildingBinding(index, \.y), in: 0...UInt16(IslandLayout.buildingHeight - 1))
-                    Picker("Rotation", selection: Binding(get: { Int(building.position.angle) }, set: { value in
-                        model.change { draft in var p = building.position; p.angle = UInt8(value); draft.island.buildings[index] = p }
-                    })) { ForEach(0..<4) { Text("\($0 * 90)°").tag($0) } }
-                    if edits.buildings[index] != nil { Button("Revert Building") { model.change { $0.island.buildings.removeValue(forKey: index) } } }
-                    Text("Each X or Y step moves the building half a terrain tile. Moving a building preserves its identity, interior, and other settings. Place it on clear, accessible land; collision and bridge/incline connections need manual checking.")
-                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
         }
+    }
+    @ViewBuilder private func bridgeStyleInspector(_ building: MapBuilding) -> some View {
+        if let type = BridgeType(building.subtype) {
+            Picker("Bridge style", selection: Binding(get: { type.style }, set: { style in
+                model.change { $0.island.bridgeTypes[building.id] = type.replacingStyle(with: style).id }
+            })) {
+                ForEach(BridgeStyle.allCases.filter { $0 != .reserved || type.style == .reserved }) { style in
+                    Text(style.name).tag(style)
+                }
+            }
+            Text("Changing style preserves the span, direction, position, and rotation, and updates the matching bridge material.")
+                .font(.caption).foregroundStyle(.secondary)
+            if edits.bridgeTypes[building.id] != nil {
+                Button("Revert Bridge Style") { model.change { $0.island.bridgeTypes.removeValue(forKey: building.id) } }
+            }
+        } else {
+            Text("Unknown bridge type (\(building.subtype)). Style changes require a recognized bridge model.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    private func plazaInspector(_ world: IslandSnapshot) -> some View {
+        let position = world.plaza(edits: edits)
+        return VStack(alignment: .leading, spacing: 16) {
+            Label("Plaza", systemImage: "square.grid.3x3.fill").font(.headline)
+            Text("12 × 10 tile plaza · Upper-left anchor").font(.callout.weight(.medium))
+            Stepper("X: \(position.x)", value: plazaBinding(\.x), in: 0...1024)
+            Stepper("Y: \(position.y)", value: plazaBinding(\.y), in: 0...1024)
+            if edits.plaza != nil {
+                Button("Revert Plaza") { model.change { $0.island.plaza = nil } }
+            }
+            Text("Each step moves the plaza half a terrain tile. Resident Services is a separate building; move it separately if needed. The plaza has no rotation. Check terrain, objects, and accessibility at the destination in game.")
+                .font(.caption).foregroundStyle(.secondary)
+            Text("Coordinates match NHSE’s 0–1024 range. Positions outside the visible island can be edited here. The outline is a size guide; alignment needs in-game verification.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    private func plazaBinding(_ key: WritableKeyPath<PlazaPosition, UInt32>) -> Binding<UInt32> {
+        Binding(get: { model.world?.plaza(edits: edits)[keyPath: key] ?? 0 }, set: { value in
+            guard let world = model.world else { return }
+            model.change { draft in
+                var position = world.plaza(edits: draft.island)
+                position[keyPath: key] = value
+                draft.island.plaza = position
+            }
+        })
     }
     private func buildingBinding(_ index: Int, _ key: WritableKeyPath<BuildingPosition, UInt16>) -> Binding<UInt16> {
         Binding(get: { model.world?.building(index, edits: edits).position[keyPath: key] ?? 0 }, set: { value in
@@ -455,7 +510,14 @@ struct IslandMapView: View {
                 }
             }
             if showBuildings || layer == .buildings {
-                for index in 0..<46 {
+                let plazaRect = MapCoordinates.plazaBounds(world.plaza(edits: edits), zoom: cell)
+                let plazaSelected = selectedBuilding == IslandLayout.plazaSelectionID && layer == .buildings
+                context.fill(Path(plazaRect), with: .color(Color.brown.opacity(plazaSelected ? 0.28 : 0.14)))
+                context.stroke(Path(plazaRect), with: .color(plazaSelected ? Color.island : .white.opacity(0.65)),
+                               style: StrokeStyle(lineWidth: plazaSelected ? 2 : 1, dash: [4, 3]))
+                context.draw(Text("Plaza").font(.system(size: 11, weight: .semibold)).foregroundColor(.primary),
+                             at: CGPoint(x: plazaRect.midX, y: plazaRect.maxY - 8))
+                for index in 0..<IslandLayout.buildingCount {
                     let building = world.building(index, edits: edits)
                     guard building.kind != 0 else { continue }
                     let point = MapCoordinates.buildingPoint(building.position, zoom: cell)
@@ -522,6 +584,8 @@ struct IslandMapView: View {
             let buildings = (0..<IslandLayout.buildingCount).map { world.building($0, edits: edits) }
             if let nearest = MapCoordinates.buildingAt(x: point.x, y: point.y, zoom: cellSize, buildings: buildings) {
                 selectedBuilding = nearest
+            } else if MapCoordinates.plazaAt(x: point.x, y: point.y, zoom: cellSize, position: world.plaza(edits: edits)) {
+                selectedBuilding = IslandLayout.plazaSelectionID
             }
         } else {
             guard let cell = MapCoordinates.terrain(x: point.x, y: point.y, zoom: cellSize) else {

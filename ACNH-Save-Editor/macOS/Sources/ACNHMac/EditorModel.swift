@@ -117,6 +117,14 @@ typealias Loadout = PocketLoadout
         if !island.terrain.isEmpty { result.append("Map: \(island.terrain.count) terrain / path tiles edited") }
         if !island.fieldItems.isEmpty { result.append("Map: \(island.fieldItems.count) outdoor item cells edited, including linked footprint cells") }
         if let world {
+            if let after = island.plaza {
+                let before = world.plaza()
+                result.append("Plaza: (\(before.x), \(before.y)) → (\(after.x), \(after.y))")
+            }
+            for index in island.bridgeTypes.keys.sorted() {
+                let before = world.building(index).subtype, after = island.bridgeTypes[index]!
+                result.append("Bridge [\(index + 1)]: \(BridgeType(before)?.name ?? "Type \(before)") → \(BridgeType(after)?.name ?? "Type \(after)")")
+            }
             for index in island.buildings.keys.sorted() {
                 let before = world.building(index), after = island.buildings[index]!
                 result.append("\(before.name): (\(before.position.x), \(before.position.y)) → (\(after.x), \(after.y)), rotation \(Int(after.angle) * 90)°")
@@ -145,8 +153,10 @@ typealias Loadout = PocketLoadout
         guard !busy, var next = draft else { return }
         mutate(&next)
         if let world {
+            if next.island.plaza == world.plaza() { next.island.plaza = nil }
             next.island.terrain = next.island.terrain.filter { world.terrain($0.key) != $0.value }
             next.island.fieldItems = next.island.fieldItems.filter { world.fieldItem($0.key) != $0.value }
+            next.island.bridgeTypes = next.island.bridgeTypes.filter { world.building($0.key).subtype != $0.value }
             next.island.buildings = next.island.buildings.filter { world.building($0.key).position != $0.value }
             next.island.villagers = next.island.villagers.filter { world.villager($0.key) != $0.value }
         }

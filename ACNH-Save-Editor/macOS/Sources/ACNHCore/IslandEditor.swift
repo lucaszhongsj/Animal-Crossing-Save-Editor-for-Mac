@@ -11,6 +11,9 @@ public enum IslandLayout {
     public static let buildingWidth = 288, buildingHeight = 256
     public static let villagers = 0x120, villagerCount = 10, villagerSize = 0x13230
     public static let acres = 0x32FAAC
+    // NHSE MainSave.EventPlazaLeftUpX/Z: OutsideField + 9*8*2 + 4/8.
+    public static let plaza = acres + 9 * 8 * 2 + 4
+    public static let plazaSelectionID = buildingCount
     public static func terrainIndex(x: Int, y: Int) throws -> Int {
         guard (0..<width).contains(x), (0..<height).contains(y) else { throw SaveError("Terrain coordinates are outside the island.") }
         return x * height + y
@@ -40,6 +43,12 @@ public struct TerrainTile: Equatable {
         let validPath = NHSETerrainModels.path.contains(path)
         guard validGround, validPath, angle < 4, pathAngle < 4, elevation <= 3 else { throw SaveError("A terrain tile has an invalid model, angle, or elevation.") }
     }
+}
+
+/// Separate uint32 coordinates in NHSE; the plaza is not a Building record.
+public struct PlazaPosition: Equatable {
+    public var x: UInt32, y: UInt32
+    public init(x: UInt32, y: UInt32) { self.x = x; self.y = y }
 }
 
 public struct BuildingPosition: Equatable {
@@ -79,9 +88,11 @@ public struct IslandEdits: Equatable {
     public var terrain: [Int: TerrainTile] = [:]
     public var fieldItems: [Int: PocketItem] = [:]
     public var buildings: [Int: BuildingPosition] = [:]
+    public var bridgeTypes: [Int: UInt16] = [:]
+    public var plaza: PlazaPosition?
     public var villagers: [Int: VillagerEdit] = [:]
     public init() {}
-    public var isEmpty: Bool { terrain.isEmpty && fieldItems.isEmpty && buildings.isEmpty && villagers.isEmpty }
+    public var isEmpty: Bool { terrain.isEmpty && fieldItems.isEmpty && buildings.isEmpty && bridgeTypes.isEmpty && plaza == nil && villagers.isEmpty }
     public func applying(to main: inout Data) throws {
         guard main.count == SaveLayout.mainSize else { throw SaveError("Unexpected island file size.") }
         let snapshot = IslandSnapshot(main: main)
@@ -107,6 +118,19 @@ public struct IslandEdits: Equatable {
                   position.x < IslandLayout.buildingWidth, position.y < IslandLayout.buildingHeight, position.angle < 4 else { throw SaveError("Invalid building position. Coordinates must be within the map (X: 0–287, Y: 0–255).") }
             let offset = IslandLayout.buildings + index * 20
             main.put16(position.x, at: offset + 2); main.put16(position.y, at: offset + 4); main[offset + 6] = position.angle
+        }
+        for (index, subtype) in bridgeTypes {
+            guard (0..<IslandLayout.buildingCount).contains(index), snapshot.building(index).kind == 26,
+                  let type = BridgeType(subtype) else { throw SaveError("Choose a known type for an existing bridge.") }
+            let offset = IslandLayout.buildings + index * IslandLayout.buildingSize
+            main.put16(type.id, at: offset + 8)
+            main[offset + 10] = type.style.rawValue
+        }
+        if let plaza {
+            // Match the original NHSE plaza controls, independently of building bounds.
+            guard plaza.x <= 1024, plaza.y <= 1024 else { throw SaveError("Invalid plaza position. Coordinates must be between 0 and 1024.") }
+            main.put32(plaza.x, at: IslandLayout.plaza)
+            main.put32(plaza.y, at: IslandLayout.plaza + 4)
         }
         let finalVillagers = (0..<10).map { villagers[$0] ?? snapshot.villager($0) }
         for (index, villager) in villagers {
@@ -147,9 +171,12 @@ public struct IslandSnapshot {
         let offset = IslandLayout.field + index * 8
         return PocketItem(raw: main.subdata(in: offset..<(offset + 8)))
     }
+    public func plaza(edits: IslandEdits = .init()) -> PlazaPosition {
+        edits.plaza ?? PlazaPosition(x: main.u32(IslandLayout.plaza), y: main.u32(IslandLayout.plaza + 4))
+    }
     public func building(_ index: Int, edits: IslandEdits = .init()) -> MapBuilding {
         let offset = IslandLayout.buildings + index * 20
-        return MapBuilding(id: index, kind: main.u16(offset), position: edits.buildings[index] ?? BuildingPosition(x: main.u16(offset + 2), y: main.u16(offset + 4), angle: main[offset + 6]), subtype: main.u16(offset + 8))
+        return MapBuilding(id: index, kind: main.u16(offset), position: edits.buildings[index] ?? BuildingPosition(x: main.u16(offset + 2), y: main.u16(offset + 4), angle: main[offset + 6]), subtype: edits.bridgeTypes[index] ?? main.u16(offset + 8))
     }
     public func villager(_ index: Int, edits: IslandEdits = .init()) -> VillagerEdit {
         if let record = edits.villagers[index] { return record }
@@ -244,6 +271,7 @@ public struct IslandSnapshot {
             let offset = IslandLayout.buildings + index * 20
             main.put16(UInt16(kind), at: offset); main.put16(UInt16(x), at: offset + 2); main.put16(UInt16(y), at: offset + 4)
         }
+        main.put32(98, at: IslandLayout.plaza); main.put32(92, at: IslandLayout.plaza + 4)
         return IslandSnapshot(main: main)
     }
 }

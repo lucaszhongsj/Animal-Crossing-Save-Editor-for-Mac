@@ -20,6 +20,18 @@ public enum MapCoordinates {
         MapPoint(x: Double(position.x) * zoom / 2, y: Double(position.y) * zoom / 2)
     }
 
+    /// The plaza uses an upper-left anchor, unlike the centered building guides.
+    public static func plazaBounds(_ position: PlazaPosition, zoom: Double) -> CGRect {
+        CGRect(x: Double(position.x) * zoom / 2, y: Double(position.y) * zoom / 2,
+               width: 12 * zoom, height: 10 * zoom)
+    }
+
+    public static func plazaAt(x: Double, y: Double, zoom: Double, position: PlazaPosition) -> Bool {
+        guard let point = worldPoint(x: x, y: y, zoom: zoom),
+              (0..<144).contains(point.x), (0..<128).contains(point.y) else { return false }
+        return plazaBounds(position, zoom: zoom).contains(CGPoint(x: x, y: y))
+    }
+
     public static func nearestBuilding(x: Double, y: Double, zoom: Double, buildings: [MapBuilding]) -> Int? {
         guard let point = worldPoint(x: x, y: y, zoom: zoom),
               (0..<144).contains(point.x), (0..<128).contains(point.y) else { return nil }
