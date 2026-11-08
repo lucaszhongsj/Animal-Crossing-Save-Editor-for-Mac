@@ -267,3 +267,9 @@ Version 2.1 (build 16) adds independent plaza coordinate editing and eight stand
 All 88 automated tests passed: 82 core tests and six native map viewport/input tests. The universal release executable contains arm64 and x86_64; both have a macOS 14.0 minimum target. Ad-hoc signature verification passed for the app and the app inside the read-only mounted DMG. The DMG checksum and ZIP CRC checks passed. Both downloads identify as 2.1 (16), contain the same executable, and preserve all 11 bundled example-save manifest hashes. The DMG includes an Applications shortcut; SHA256SUMS.txt accompanies both download assets.
 
 Developer ID notarization, execution on Intel hardware, physical trackpad feel, exact in-game plaza/building anchor alignment, and importing edited saves back into the game remain manual checks. The guides do not enforce collision handling or relocate terrain, Resident Services, or outdoor objects automatically.
+
+### Version 2.2 release — 7 November 2026
+
+Live Pocket Editing was exercised against stock nxnative builds of ACNH 3.0.3 on Apple silicon. The tests covered macOS authorization, automatic identification of both live pocket copies, refresh on editor focus, and a prototype item write that persisted after saving and reloading. The editor’s batch write and live undo paths have not been exercised in-game.
+
+All 94 automated tests passed, including 82 core tests and 12 Mac tests. Both release archives contain the same signed app at version 2.2 (build 17), with arm64 and x86_64 slices targeting macOS 14.0. The DMG passed checksum verification and contains an Applications shortcut. The ZIP passed its archive integrity check. The ad-hoc signature and debugger entitlement were verified, and SHA256SUMS.txt accompanies both downloads.

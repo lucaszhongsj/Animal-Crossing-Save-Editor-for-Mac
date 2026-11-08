@@ -1,6 +1,6 @@
 # Animal Crossing Save Editor for Mac — Mac guide
 
-Version **2.1** — plaza movement and eight bridge styles, alongside map artwork, building guides, continuous centered zoom, keyboard item editing, and the complete Yolo preview island.
+Version **2.2** adds Live Pocket Editing for stock nxnative builds on Apple silicon. It also brings Storage’s selection and editing controls to both pocket modes.
 
 An independent native SwiftUI macOS adaptation primarily based on [NHSE](https://github.com/kwsch/NHSE), using its save-format research and editor behavior. [cbreezy210/ACNH-Save-Editor](https://github.com/cbreezy210/ACNH-Save-Editor) provided the initial foundation and selected save-cryptography routines. Requires macOS 14 or later. The universal build supports Apple silicon and Intel Macs. Works offline without third-party runtimes.
 
@@ -30,7 +30,7 @@ ACNH_APP_ICON="$PWD/IconAlternates/LeafAndPencil.icns" ACNH_BUILD_SCRATCH=/priva
 
 ## Edit live pockets
 
-Live Pocket Editing is the headline feature in the development build. It supports the primary resident on **ACNH 3.0.3** in a stock **nxnative** Mac build on Apple silicon.
+Live Pocket Editing is the headline feature in 2.2. It supports the primary resident on **ACNH 3.0.3** in a stock **nxnative** Mac build on Apple silicon.
 
 1. Load your island as the primary resident and open **Pockets → Live Game → Connect to Live Game**. Approve the macOS authorization prompt if it appears. If the editor can’t identify both live pocket copies, save in-game and try connecting again.
 2. Select pockets and choose an item and quantity, then click **Send to Game**. Shift-click selects a range and Command-click toggles individual slots. Search, **Occupied slots only**, and **Find Empty Slot** help you find destinations.
