@@ -2,21 +2,40 @@ import SwiftUI
 import ACNHCore
 
 struct ItemLibraryView: View {
-    enum Destination { case pocket, storage }
+    enum Destination { case pocket, livePocket, storage }
     @EnvironmentObject var model: EditorModel
     let destination: Destination
-    private var selected: Set<Int> { destination == .pocket ? model.pocketSelection.indices : model.storageSelection.indices }
-    private var records: [PocketItem] { (destination == .pocket ? model.draft?.pockets : model.draft?.storage) ?? [] }
+    private var selected: Set<Int> {
+        switch destination {
+        case .pocket: model.pocketSelection.indices
+        case .livePocket: model.livePocketSelection.indices
+        case .storage: model.storageSelection.indices
+        }
+    }
+    private var records: [PocketItem] {
+        switch destination {
+        case .pocket: model.draft?.pockets ?? []
+        case .livePocket: model.livePockets ?? []
+        case .storage: model.draft?.storage ?? []
+        }
+    }
     private var canPlace: Bool { !selected.isEmpty && selected.allSatisfy { records.indices.contains($0) } }
     private var replacingCount: Int { selected.filter { records.indices.contains($0) && !records[$0].isEmpty }.count }
     private var placementTitle: String {
+        if destination == .livePocket {
+            return canPlace ? "Send to Game" : "Choose Pockets"
+        }
         let name = destination == .pocket ? "Pocket" : "Storage Slot"
         guard canPlace else { return "Choose \(destination == .pocket ? "Pockets" : "Storage Slots")" }
         if selected.count == 1 { return "Place in \(name) \(selected.first! + 1)" }
         return "Place in \(selected.count) \(destination == .pocket ? "Pockets" : "Storage Slots")"
     }
     private func placeItem() {
-        switch destination { case .pocket: model.placeItem(); case .storage: model.placeStorageItem() }
+        switch destination {
+        case .pocket: model.placeItem()
+        case .livePocket: model.sendLivePocketItem()
+        case .storage: model.placeStorageItem()
+        }
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {

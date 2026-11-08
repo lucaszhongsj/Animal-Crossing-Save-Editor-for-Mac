@@ -28,6 +28,17 @@ Recreate the default icon with `./scripts/make-app-icon.sh AppIcon.png AppIcon.i
 ACNH_APP_ICON="$PWD/IconAlternates/LeafAndPencil.icns" ACNH_BUILD_SCRATCH=/private/tmp/NHSE-Mac-Build ACNH_BUILD_OUTPUT=/private/tmp/NHSE-Mac-Alternate ./scripts/build-app.sh
 ```
 
+## Edit live pockets
+
+Live Pocket Editing is the headline feature in the development build. It supports the primary resident on **ACNH 3.0.3** in a stock **nxnative** Mac build on Apple silicon.
+
+1. Load your island as the primary resident and open **Pockets → Live Game → Connect to Live Game**. Approve the macOS authorization prompt if it appears. If the editor can’t identify both live pocket copies, save in-game and try connecting again.
+2. Select pockets and choose an item and quantity, then click **Send to Game**. Shift-click selects a range and Command-click toggles individual slots. Search, **Occupied slots only**, and **Find Empty Slot** help you find destinations.
+3. Use the pocket inspector to remove an item or update its quantity. **Undo Edit** restores the most recent live edit from the current connection if the affected slots still match that edit.
+4. Close and reopen your in-game pockets to see changes. Save in-game to keep them. The editor refreshes its grid when its window regains focus.
+
+The editor connects directly to the running game. The nxnative build process and game app bundle stay untouched.
+
 ## Use an exported save
 
 1. Fully close Animal Crossing on your Switch. Export a complete save with your save manager and copy that folder to your Mac.

@@ -6,7 +6,7 @@ Browse an example island to explore the app, or open your own exported save fold
 
 Built for Mac, with a familiar interface and no extra software to install.
 
-Current Mac version: **2.1**. Requires **macOS 14 or later**. Universal builds support Apple silicon and Intel. Supported save revisions: **ACNH 3.0.0–3.0.3**.
+Current Mac release: **2.1**. Requires **macOS 14 or later**. Universal builds support Apple silicon and Intel. Supported save revisions: **ACNH 3.0.0–3.0.3**.
 
 ## Download and install
 
@@ -19,6 +19,12 @@ Current Mac version: **2.1**. Requires **macOS 14 or later**. Universal builds s
 Requires macOS 14 or later. One download supports both Apple silicon and Intel. No Xcode, Homebrew, terminal commands, or separate runtime is needed to use the app.
 
 **First launch:** this build is ad-hoc signed and has not been notarized by Apple. If macOS blocks it and you trust this download, open **System Settings → Privacy & Security → Open Anyway** after attempting to launch it. See [Apple's first-launch instructions](https://support.apple.com/102445). A launch without this approval requires Developer ID signing and notarization, which are not yet available for this project.
+
+## Live Pocket Editing (development build)
+
+**Edit your pockets while Animal Crossing is running on your Mac.** Open **Pockets → Live Game** and click **Connect to Live Game**. You can add, replace, or remove items in multiple slots, adjust stack quantities, and undo the last live pocket edit. The inventory refreshes when you return to the editor.
+
+Live Pocket Editing supports the primary resident in **Animal Crossing: New Horizons 3.0.3** running in a stock **nxnative** Mac build on Apple silicon. macOS may ask you to authorize access when you connect. Close and reopen the in-game pockets to see edits, then save in-game to keep them. See the [Mac guide](ACNH-Save-Editor/macOS/README.md#edit-live-pockets) for setup and troubleshooting.
 
 ## New in 2.1
 
@@ -44,7 +50,7 @@ Requires macOS 14 or later. One download supports both Apple silicon and Intel. 
 
 ## Before you start
 
-You need an exported Animal Crossing: New Horizons save folder. This app edits that folder; you will need a separate way to export your save and import it back into your game.
+For offline save editing, open an exported Animal Crossing: New Horizons save folder. You’ll need a way to export the save and import it back into the game.
 
 Editing currently supports the primary player. Some features, including house interiors, DIY recipes, and custom designs, are not available yet. See the detailed comparison below for the full list.
 

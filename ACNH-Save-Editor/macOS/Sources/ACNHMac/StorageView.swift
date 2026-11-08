@@ -66,7 +66,9 @@ struct StorageView: View {
                 if let index = model.storageSelection.single, items.indices.contains(index), visible.contains(index) {
                     VStack(spacing: 0) {
                         Divider()
-                        StorageInspector(index: index, item: items[index]).id(index).padding(.horizontal, 26).padding(.vertical, 12)
+                        InventorySlotInspector(title: "Storage slot \(index + 1)", item: items[index],
+                                               remove: { model.clearStorageSlot(index) },
+                                               updateQuantity: { model.updateStorageQuantity(index, quantity: $0) }).id(index).padding(.horizontal, 26).padding(.vertical, 12)
                     }.background(Color(nsColor: .windowBackgroundColor))
                 } else if model.storageSelection.indices.count > 1 {
                     HStack {
@@ -116,10 +118,12 @@ struct StorageView: View {
     }
 }
 
-private struct StorageInspector: View {
+struct InventorySlotInspector: View {
     @EnvironmentObject var model: EditorModel
-    let index: Int
+    let title: String
     let item: PocketItem
+    let remove: () -> Void
+    let updateQuantity: (Int) -> Void
     @State private var quantity = 1
     private var stackLimit: Int { model.catalog.byID[item.id]?.maxStack ?? 1 }
     var body: some View {
@@ -127,20 +131,20 @@ private struct StorageInspector: View {
             HStack(spacing: 12) {
                 ItemIcon(id: item.id, size: 44)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Storage slot \(index + 1)").font(.caption).foregroundStyle(.secondary)
+                    Text(title).font(.caption).foregroundStyle(.secondary)
                     Text(model.catalog.name(item, emptyLabel: "Empty slot")).font(.headline)
                     if !item.isEmpty { Text(String(format: "Item %04X", item.id)).font(.caption.monospaced()).foregroundStyle(.secondary) }
                 }
                 Spacer()
-                Button("Remove Item") { model.clearStorageSlot(index) }.disabled(item.isEmpty)
+                Button("Remove Item", action: remove).disabled(item.isEmpty)
             }
             if !item.isEmpty && stackLimit > 1 {
                 HStack {
                     Stepper("Stored quantity: \(quantity)", value: $quantity, in: 1...stackLimit)
                     Spacer()
-                    Button("Update Quantity") { model.updateStorageQuantity(index, quantity: quantity) }.disabled(quantity == item.storedCount + 1)
+                    Button("Update Quantity") { updateQuantity(quantity) }.disabled(quantity == item.storedCount + 1)
                 }
-                Text("Quantity changes preserve this item’s other saved details.").font(.caption).foregroundStyle(.secondary)
+                Text("Quantity changes preserve this item’s other details.").font(.caption).foregroundStyle(.secondary)
             }
         }.padding(16).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
             .onAppear { loadQuantity() }.onChange(of: item) { loadQuantity() }

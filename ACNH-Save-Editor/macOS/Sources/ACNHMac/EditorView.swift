@@ -9,6 +9,7 @@ extension Color {
 
 struct EditorView: View {
     @EnvironmentObject var model: EditorModel
+    @State private var showLivePockets = false
     @State private var dropTargeted = false
     var body: some View {
         NavigationSplitView {
@@ -34,7 +35,7 @@ struct EditorView: View {
         } detail: {
             VStack(spacing: 0) {
                 Group {
-                    if !model.isLoaded && model.page != .backups { welcome }
+                    if !model.isLoaded && model.page != .backups && model.page != .pockets { welcome }
                     else {
                         switch model.page ?? .overview {
                         case .overview: overview
@@ -42,7 +43,7 @@ struct EditorView: View {
                         case .islandSettings: IslandSettingsView()
                         case .map: IslandMapView()
                         case .villagers: VillagersView()
-                        case .pockets: pockets
+                        case .pockets: pocketPage
                         case .storage: StorageView()
                         case .loadouts: loadouts
                         case .backups: backups
@@ -185,66 +186,27 @@ struct EditorView: View {
         }.padding(20).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(.primary.opacity(0.07)))
     }
-    private var pockets: some View {
-        HSplitView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    heading("Pockets, packed your way.", "\(model.draft?.pockets.count ?? 0) unlocked pockets · Choose one or more pockets, then place an item in all selected slots.")
-                    if model.demo { demoBanner }
-                    InventorySelectionHint(selection: model.pocketSelection)
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 5), spacing: 10) {
-                        ForEach(0..<(model.draft?.pockets.count ?? 0), id: \.self) { index in pocketCell(index) }
-                    }
-                    if let index = model.pocketSelection.single, let slots = model.draft?.pockets, slots.indices.contains(index) {
-                        let slot = slots[index]
-                        HStack {
-                            ItemIcon(id: slot.id, size: 44)
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text("Pocket \(index + 1)").font(.caption).foregroundStyle(.secondary)
-                                Text(model.catalog.name(slot)).font(.headline)
-                                if !slot.isEmpty { Text(String(format: "Item %04X", slot.id)).font(.caption.monospaced()).foregroundStyle(.secondary) }
-                            }
-                            Spacer()
-                            Button("Clear Pocket", action: { model.clearSelected(in: .pockets) }).disabled(slot.isEmpty)
-                        }.padding(16).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
-                    }
-                    if model.pocketSelection.indices.count > 1 {
-                        HStack {
-                            Text("\(model.pocketSelection.indices.count) pockets selected").font(.headline)
-                            Spacer()
-                            Button("Clear Selected Pockets") { model.clearSelected(in: .pockets) }
-                                .disabled(!model.pocketSelection.indices.contains { model.draft?.pockets[$0].isEmpty == false })
-                        }
-                    }
-                    Text("Showing all \(model.draft?.pockets.count ?? 0) pockets unlocked by the primary resident. Locked slots, pocket upgrades, and other residents are preserved.")
-                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }.padding(26)
-            }.frame(minWidth: 460, idealWidth: 600)
-            itemBrowser.frame(minWidth: 290, idealWidth: 330, maxWidth: 430)
+    private var pocketPage: some View {
+        VStack(spacing: 0) {
+            if model.isLoaded {
+                Picker("Pocket source", selection: $showLivePockets) {
+                    Text("Save Draft").tag(false)
+                    Text("Live Game").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: 290)
+                .padding(12)
+                Divider()
+            }
+            if showLivePockets || !model.isLoaded { LivePocketsView() }
+            else { pockets }
         }
     }
-    private func pocketCell(_ index: Int) -> some View {
-        let slot = model.draft?.pockets[index] ?? .empty
-        let selected = model.pocketSelection.indices.contains(index)
-        return Button {
-            let flags = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
-            model.pocketSelection.click(index, visible: Array((model.draft?.pockets ?? []).indices), command: flags.contains(.command), shift: flags.contains(.shift))
-        } label: {
-            VStack(spacing: 7) {
-                HStack {
-                    Text("\(index + 1)").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-                    if selected { Image(systemName: "checkmark.circle.fill").font(.caption2).foregroundStyle(Color.island) }
-                    Spacer()
-                    Text(model.catalog.quantity(slot)).font(.caption2.weight(.semibold)).foregroundStyle(Color.island)
-                }
-                ItemIcon(id: slot.id, size: 40)
-                Text(slot.isEmpty ? "Empty" : model.catalog.name(slot)).font(.system(size: 10, weight: .medium)).lineLimit(2).multilineTextAlignment(.center).frame(height: 28)
-            }.padding(9).frame(maxWidth: .infinity, minHeight: 94)
-                .background(selected ? Color.island.opacity(0.1) : Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(selected ? Color.island : Color.primary.opacity(0.08), lineWidth: selected ? 2 : 1))
-        }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : []).accessibilityLabel("Pocket \(index + 1), \(model.catalog.name(slot)) \(model.catalog.quantity(slot))")
+
+    private var pockets: some View {
+        PocketInventoryView(live: false)
     }
-    private var itemBrowser: some View { ItemLibraryView(destination: .pocket) }
     private var loadouts: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
@@ -356,6 +318,37 @@ private struct WindowGuard: NSViewRepresentable {
     final class Coordinator: NSObject, NSWindowDelegate {
         let model: EditorModel
         init(_ model: EditorModel) { self.model = model }
+        func windowDidBecomeKey(_ notification: Notification) {
+            model.refreshLivePocketsOnFocus()
+        }
         func windowShouldClose(_ sender: NSWindow) -> Bool { !model.busy && model.confirmDiscard() }
+    }
+}
+
+
+struct PocketCell: View {
+    @EnvironmentObject var model: EditorModel
+    let index: Int
+    let slot: PocketItem
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            action()
+        } label: {
+            VStack(spacing: 7) {
+                HStack {
+                    Text("\(index + 1)").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                    if selected { Image(systemName: "checkmark.circle.fill").font(.caption2).foregroundStyle(Color.island) }
+                    Spacer()
+                    Text(model.catalog.quantity(slot)).font(.caption2.weight(.semibold)).foregroundStyle(Color.island)
+                }
+                ItemIcon(id: slot.id, size: 40)
+                Text(slot.isEmpty ? "Empty" : model.catalog.name(slot)).font(.system(size: 10, weight: .medium)).lineLimit(2).multilineTextAlignment(.center).frame(height: 28)
+            }.padding(9).frame(maxWidth: .infinity, minHeight: 94)
+                .background(selected ? Color.island.opacity(0.1) : Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(selected ? Color.island : Color.primary.opacity(0.08), lineWidth: selected ? 2 : 1))
+        }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : []).accessibilityLabel("Pocket \(index + 1), \(model.catalog.name(slot)) \(model.catalog.quantity(slot))")
     }
 }

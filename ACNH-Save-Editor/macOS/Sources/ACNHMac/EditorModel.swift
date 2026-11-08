@@ -51,6 +51,11 @@ typealias Loadout = PocketLoadout
     var previewDescription: String {
         "\(draft?.islandSettings.name ?? "Yolo") example island"
     }
+    @Published var liveConnection: LivePocketConnection?
+    private var liveRefreshPending = false
+    @Published var livePockets: [PocketItem]?
+    @Published var livePocketHistory: [(before: [Int: PocketItem], after: [Int: PocketItem])] = []
+    @Published var livePocketSelection = InventorySelection()
     @Published var pocketSelection = InventorySelection(0)
     @Published var storageSelection = InventorySelection()
     @Published var selectedItem: UInt16?
@@ -166,6 +171,30 @@ typealias Loadout = PocketLoadout
     }
     func undo() { guard let old = history.popLast(), let draft else { return }; future.append(draft); self.draft = old }
     func redo() { guard let next = future.popLast(), let draft else { return }; history.append(draft); self.draft = next }
+    private var lastPocketEdit: Int? {
+        guard let draft else { return nil }
+        return history.lastIndex { $0.pockets != draft.pockets }
+    }
+
+    var canUndoPocketEdit: Bool { !busy && lastPocketEdit != nil }
+
+    func undoPocketEdit() {
+        guard !busy, var current = draft, let index = lastPocketEdit else { return }
+        let pockets = history[index].pockets
+        var remaining = Array(history.prefix(through: index))
+        // Keep later edits to other tabs in the global undo history.
+        for var snapshot in history.dropFirst(index + 1) {
+            snapshot.pockets = pockets
+            if snapshot != remaining.last { remaining.append(snapshot) }
+        }
+        current.pockets = pockets
+        if remaining.last == current { remaining.removeLast() }
+        history = remaining
+        future.removeAll()
+        draft = current
+        status = "Last pocket edit undone in your draft."
+    }
+
     func revert() { guard let initial = session?.initial else { return }; change { $0 = initial } }
     func economyBinding(_ index: Int) -> Binding<UInt32> {
         Binding(get: { self.draft?.economy[index] ?? 0 }, set: { value in self.change { $0.economy[index] = min(value, SaveDraft.limits[index]) } })
@@ -367,14 +396,33 @@ typealias Loadout = PocketLoadout
             status = "\(loadout.name): \(loadout.pockets.count) pockets applied to your draft." + (remaining > 0 ? " The remaining \(remaining) pockets are preserved." : "")
         } catch { self.error = error.localizedDescription }
     }
-    func perform<T>(_ message: String, operation: @escaping () throws -> T, completion: @escaping (T) -> Void) {
+    func refreshLivePocketsOnFocus() {
+        guard liveConnection != nil else { return }
+        if busy { liveRefreshPending = true }
+        else { refreshLivePockets(automatic: true) }
+    }
+
+    func perform<T>(_ message: String, reportError: Bool = true, operation: @escaping () throws -> T, completion: @escaping (T) -> Void) {
         guard !busy else { return }
         busy = true; status = message
         Task {
+            defer {
+                if liveRefreshPending {
+                    liveRefreshPending = false
+                    refreshLivePocketsOnFocus()
+                }
+            }
             do {
                 let value = try await Task.detached(priority: .userInitiated) { try operation() }.value
                 busy = false; completion(value)
-            } catch { busy = false; self.error = error.localizedDescription; status = "Operation stopped. \(error.localizedDescription)"; reloadBackups() }
+            } catch {
+                busy = false
+                status = "Operation stopped. \(error.localizedDescription)"
+                if reportError {
+                    self.error = error.localizedDescription
+                    reloadBackups()
+                }
+            }
         }
     }
 }
