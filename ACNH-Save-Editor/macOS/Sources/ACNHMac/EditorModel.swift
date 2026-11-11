@@ -139,9 +139,14 @@ typealias Loadout = PocketLoadout
                 let name = IslandMetadata.shared.name(before)
                 if before.identity != after.identity { result.append("Villager \(index + 1): \(name) → \(IslandMetadata.shared.name(after))") }
                 if before.personality != after.personality { result.append("\(name): personality → \(VillagerEdit.personalities[Int(after.personality)])") }
-                if before.catchphrase != after.catchphrase { result.append("\(name): catchphrase → “\(after.catchphrase)”") }
                 if before.movingOut != after.movingOut { result.append("\(name): moving out → \(after.movingOut ? "Yes" : "No")") }
                 if before.friendship != after.friendship { result.append("\(name): friendship edited") }
+            }
+            for (index, languages) in island.phrases {
+                let name = IslandMetadata.shared.name(world.villager(index))
+                for (language, after) in languages.sorted(by: { $0.key < $1.key }) {
+                    result.append("\(name): \(VillagerPhraseLanguage.name(language)) catchphrase → “\(after)”")
+                }
             }
         }
         return result
@@ -164,6 +169,13 @@ typealias Loadout = PocketLoadout
             next.island.bridgeTypes = next.island.bridgeTypes.filter { world.building($0.key).subtype != $0.value }
             next.island.buildings = next.island.buildings.filter { world.building($0.key).position != $0.value }
             next.island.villagers = next.island.villagers.filter { world.villager($0.key) != $0.value }
+            let currentPhrases = next.island.phrases
+            var cleanedPhrases = currentPhrases
+            for (index, languages) in currentPhrases {
+                let changed = languages.filter { world.catchphrase(villager: index, language: $0.key) != $0.value }
+                cleanedPhrases[index] = changed.isEmpty ? nil : changed
+            }
+            next.island.phrases = cleanedPhrases
         }
         guard next != draft else { return }
         if recordUndo { history.append(draft!); if history.count > 150 { history.removeFirst() } }
@@ -252,6 +264,17 @@ typealias Loadout = PocketLoadout
         change { draft in
             var record = world.villager(index, edits: draft.island)
             mutate(&record); draft.island.villagers[index] = record
+        }
+    }
+    func editPhrase(_ index: Int, language: Int, text: String) {
+        guard let world else { return }
+        change { draft in
+            if world.catchphrase(villager: index, language: language, edits: draft.island) == text {
+                draft.island.phrases[index]?[language] = nil
+                if draft.island.phrases[index]?.isEmpty == true { draft.island.phrases[index] = nil }
+            } else {
+                draft.island.phrases[index, default: [:]][language] = text
+            }
         }
     }
     func dropMapItem(at index: Int) {

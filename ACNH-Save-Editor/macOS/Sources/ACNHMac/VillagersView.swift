@@ -4,6 +4,7 @@ import ACNHCore
 struct VillagersView: View {
     @EnvironmentObject var model: EditorModel
     @State private var selected = 0
+    @State private var phraseLanguage = VillagerPhraseLanguage.current
     @State private var choosing = false
     var body: some View {
         ScrollView {
@@ -30,14 +31,15 @@ struct VillagersView: View {
                     let record = world.villager(selected, edits: edits)
                     if record.isEmpty {
                         ContentUnavailableView("Empty Resident Slot", systemImage: "pawprint", description: Text("Choose an existing resident to edit. Adding a new resident requires move-in and house data."))
-                    } else { residentEditor(record, world: world) }
+                    } else { residentEditor(record, world: world, edits: edits) }
                 }.padding(28).frame(maxWidth: 1060)
             }
         }
         .sheet(isPresented: $choosing) { chooseResident }
     }
-    private func residentEditor(_ record: VillagerEdit, world: IslandSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 20) {
+    private func residentEditor(_ record: VillagerEdit, world: IslandSnapshot, edits: IslandEdits) -> some View {
+        let phrase = world.catchphrase(villager: selected, language: phraseLanguage, edits: edits)
+        return VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 16) {
                 VillagerPortrait(record: record, size: 88)
                 VStack(alignment: .leading, spacing: 6) {
@@ -58,9 +60,14 @@ struct VillagersView: View {
                     Picker("Personality", selection: Binding(get: { Int(record.personality) }, set: { value in model.editVillager(selected) { $0.personality = UInt8(value) } })) {
                         ForEach(Array(VillagerEdit.personalities.enumerated()), id: \.offset) { index, label in Text(label).tag(index) }
                     }
-                    TextField("Catchphrase", text: Binding(get: { record.catchphrase }, set: { text in model.editVillager(selected) { $0.catchphrase = text } }))
-                        .textFieldStyle(.roundedBorder).accessibilityLabel("Villager catchphrase")
-                    Text("\(record.catchphrase.utf16.count) / 24 UTF-16 units").font(.caption).foregroundStyle(record.catchphrase.utf16.count > 24 ? .red : .secondary)
+                    HStack {
+                        TextField("Catchphrase", text: Binding(get: { phrase }, set: { text in model.editPhrase(selected, language: phraseLanguage, text: text) }))
+                            .textFieldStyle(.roundedBorder).accessibilityLabel("Villager catchphrase")
+                        Picker("Catchphrase language", selection: $phraseLanguage) {
+                            ForEach(0..<VillagerPhraseLanguage.names.count, id: \.self) { index in Text(VillagerPhraseLanguage.name(index)).tag(index) }
+                        }.labelsHidden().frame(width: 170).accessibilityLabel("Catchphrase language")
+                    }
+                    Text("\(phrase.utf16.count) / \(VillagerPhraseLanguage.maxUnits) UTF-16 units").font(.caption).foregroundStyle(phrase.utf16.count > VillagerPhraseLanguage.maxUnits ? .red : .secondary)
                     Toggle("Moving out", isOn: Binding(get: { record.movingOut }, set: { value in model.editVillager(selected) { $0.movingOut = value } }))
                     Text("This changes the moving-out state flag. The villager’s other progress and memories are preserved.").font(.caption).foregroundStyle(.secondary)
                 }.frame(maxWidth: .infinity, alignment: .topLeading)
@@ -88,8 +95,9 @@ struct VillagersView: View {
         VillagerChooser { choice in
             model.editVillager(selected) { record in
                 record.species = choice.species; record.variant = choice.variant
-                record.personality = choice.personality; record.catchphrase = choice.phrase
+                record.personality = choice.personality
             }
+            model.editPhrase(selected, language: phraseLanguage, text: choice.phrase)
             model.status = "\(choice.name) selected. Existing house and player memories preserved."
             choosing = false
         }
@@ -112,7 +120,7 @@ private struct VillagerChooser: View {
             TextField("Search by name", text: $search).textFieldStyle(.roundedBorder).accessibilityLabel("Search villagers")
             List(choices, selection: $selected) { choice in
                 HStack(spacing: 12) {
-                    VillagerPortrait(record: VillagerEdit(species: choice.species, variant: choice.variant, personality: choice.personality, catchphrase: "", movingOut: false, friendship: []), size: 42)
+                    VillagerPortrait(record: VillagerEdit(species: choice.species, variant: choice.variant, personality: choice.personality, movingOut: false, friendship: []), size: 42)
                     VStack(alignment: .leading, spacing: 3) { Text(choice.name).font(.headline); Text(choice.id).font(.caption.monospaced()).foregroundStyle(.secondary) }
                     Spacer()
                     Text(VillagerEdit.personalities[Int(choice.personality)]).font(.caption).foregroundStyle(.secondary)

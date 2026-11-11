@@ -165,10 +165,10 @@ Live checks with a fresh generated fixture:
 - All ten slot cards render; the two occupied slots display portraits. An empty slot shows an explanation and exposes no resident-editing controls.
 - Search works by name (including mixed case) and internal ID (`cat23`). Cancelling the chooser leaves the original draft untouched.
 - Choosing Lucky for Bob’s slot creates a duplicate draft. Export correctly rejects it, creates no destination, and leaves the original files untouched. **Revert Resident** restores Bob and removes the draft changes.
-- A 13-emoji catchphrase shows 26 / 24 UTF-16 units and export is rejected without creating a destination. Undo restores the original phrase.
+- A 13-emoji catchphrase shows 26 / 21 UTF-16 units and export is rejected without creating a destination. Undo restores the original phrase.
 - Choosing Raymond changes the portrait, identity, default personality (Smug), and default catchphrase (crisp) in one undo step. Undo restores Bob and his original details; redo restores Raymond.
 - Independent edits set Raymond to Cranky, catchphrase `Hello 🌴` (8 units), friendship 255, and moving out. The friendship slider also reaches 0.
-- Switching to Lucky retains his original identity/details. Set his phrase to twelve palm-tree emoji (exactly 24 units), and friendship to 0. Reverting Lucky leaves Raymond’s edits intact; undo restores Lucky’s complete edit.
+- Switching to Lucky retains his original identity/details. Set his phrase to ten palm-tree emoji (exactly 20 units), and friendship to 0. Reverting Lucky leaves Raymond’s edits intact; undo restores Lucky’s complete edit.
 - Review lists exactly seven changes across the two residents. Exported through the native dialog, reopened the exported folder with verified checksums, and inspected both residents’ saved identity, personality, Unicode phrase, friendship and moving-out values.
 
 `scripts/verify-villager-ui-export.py` independently decrypted the UI export with OpenSSL, checked the exact expected bytes for the seven reviewed changes, verified all 19 island checksums using Python, and compared every unrelated plaintext byte and sibling file. Houses/furniture, remaining player-memory data, map, other residents and personal files were preserved. The original fixture remained byte-identical.

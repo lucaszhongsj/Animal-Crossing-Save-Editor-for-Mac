@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify the generated-fixture villager scenario in VALIDATION.md.
 
-Usage: python3 scripts/verify-villager-ui-export.py ORIGINAL_FIXTURE UI_EXPORT
+Usage: python3 scripts/verify-villager-ui-export.py ORIGINAL_FIXTURE UI_EXPORT [LANGUAGE_SLOT]
 This verifies test fixtures, not arbitrary user saves. No ACNHCore code is used.
 """
 import importlib.util
@@ -15,7 +15,7 @@ crypto = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(crypto)
 
 
-def verify(original, exported):
+def verify(original, exported, language=1):
     before, after = crypto.decrypt(original), crypto.decrypt(exported)
     assert len(before) == len(after) == 0x9B0E90
     expected = bytearray(before)
@@ -23,10 +23,10 @@ def verify(original, exported):
     expected[offset:offset + 3] = bytes([4, 23, 2])  # Raymond, custom Cranky personality
     expected[offset + 0x46] = 255
     expected[offset + 0x1267A] |= 2
-    for index, text in [(0, "Hello 🌴"), (1, "🌴" * 12)]:
-        start = 0x120 + index * 0x13230 + 0x10794
+    for index, text in [(0, "Hello 🌴"), (1, "🌴" * 10)]:
+        start = 0x120 + index * 0x13230 + 0x10768 + language * 0x2C
         encoded = text.encode("utf-16-le")
-        expected[start:start + 48] = encoded + bytes(48 - len(encoded))
+        expected[start:start + 44] = encoded + bytes(44 - len(encoded))
     expected[0x120 + 0x13230 + 0x46] = 0
     regions = [(0x110, 0x1E339C), (0x1E34B0, 0x3D089C)]
     for base in [0x5B3E60, 0x6288A0, 0x69D2E0, 0x711D20,
@@ -49,6 +49,6 @@ def verify(original, exported):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
+    if len(sys.argv) not in (3, 4):
         raise SystemExit(__doc__)
-    verify(pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]))
+    verify(pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) == 4 else 1)
