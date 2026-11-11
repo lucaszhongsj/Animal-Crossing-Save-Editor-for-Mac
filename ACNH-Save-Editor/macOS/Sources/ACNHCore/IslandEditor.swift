@@ -70,17 +70,43 @@ public struct MapBuilding: Identifiable {
     }
 }
 
+/// S00 stores eleven localized catchphrases as char16[22] at villager + 0x10768.
+/// Entry 1 is English; entries 9 and 10 are Simplified and Traditional Chinese.
+public enum VillagerPhraseLanguage {
+    public static let base = 0x10768, size = 0x2C, count = 11, units = 22, maxUnits = 21
+    public static let names = ["Japanese", "English", "Spanish", "French", "German", "Italian", "Dutch", "Russian", "Korean", "Simplified Chinese", "Traditional Chinese"]
+    public static var current: Int { index(for: Locale.preferredLanguages.first ?? "en") }
+    public static func index(for identifier: String) -> Int {
+        let id = identifier.lowercased(), code = id.split(separator: "-").first.map(String.init) ?? ""
+        switch code {
+        case "ja": return 0
+        case "es": return 2
+        case "fr": return 3
+        case "de": return 4
+        case "it": return 5
+        case "nl": return 6
+        case "ru": return 7
+        case "ko": return 8
+        case "zh":
+            if id.contains("hans") { return 9 }
+            if id.contains("hant") { return 10 }
+            return id.contains("-tw") || id.contains("-hk") || id.contains("-mo") ? 10 : 9
+        default: return 1
+        }
+    }
+    public static func name(_ index: Int) -> String { names.indices.contains(index) ? names[index] : names[1] }
+}
+
 public struct VillagerEdit: Equatable {
     public var species: UInt8, variant: UInt8, personality: UInt8
-    public var catchphrase: String
     public var movingOut: Bool
     public var friendship: [UInt8]
     public var isEmpty: Bool { species >= 35 }
     public var identity: Int { Int(species) * 256 + Int(variant) }
     public static let personalities = ["Lazy", "Jock", "Cranky", "Smug", "Normal", "Peppy", "Snooty", "Sisterly", "None"]
-    public init(species: UInt8, variant: UInt8, personality: UInt8, catchphrase: String, movingOut: Bool, friendship: [UInt8]) {
+    public init(species: UInt8, variant: UInt8, personality: UInt8, movingOut: Bool, friendship: [UInt8]) {
         self.species = species; self.variant = variant; self.personality = personality
-        self.catchphrase = catchphrase; self.movingOut = movingOut; self.friendship = friendship
+        self.movingOut = movingOut; self.friendship = friendship
     }
 }
 
@@ -91,8 +117,10 @@ public struct IslandEdits: Equatable {
     public var bridgeTypes: [Int: UInt16] = [:]
     public var plaza: PlazaPosition?
     public var villagers: [Int: VillagerEdit] = [:]
+    /// Pending catchphrases by villager and language slot.
+    public var phrases: [Int: [Int: String]] = [:]
     public init() {}
-    public var isEmpty: Bool { terrain.isEmpty && fieldItems.isEmpty && buildings.isEmpty && bridgeTypes.isEmpty && plaza == nil && villagers.isEmpty }
+    public var isEmpty: Bool { terrain.isEmpty && fieldItems.isEmpty && buildings.isEmpty && bridgeTypes.isEmpty && plaza == nil && villagers.isEmpty && phrases.isEmpty }
     public func applying(to main: inout Data) throws {
         guard main.count == SaveLayout.mainSize else { throw SaveError("Unexpected island file size.") }
         let snapshot = IslandSnapshot(main: main)
@@ -134,25 +162,30 @@ public struct IslandEdits: Equatable {
         }
         let finalVillagers = (0..<10).map { villagers[$0] ?? snapshot.villager($0) }
         for (index, villager) in villagers {
-            guard (0..<10).contains(index), !snapshot.villager(index).isEmpty, NHSEVillagerIDs.known.contains(villager.identity), villager.personality <= 8, villager.friendship.count == 8,
-                  villager.catchphrase.utf16.count <= 24, !villager.catchphrase.contains("\0") else { throw SaveError("Invalid villager record or catchphrase. Catchphrases allow 24 UTF-16 units.") }
+            guard (0..<10).contains(index), !snapshot.villager(index).isEmpty, NHSEVillagerIDs.known.contains(villager.identity), villager.personality <= 8, villager.friendship.count == 8 else { throw SaveError("Invalid villager record.") }
             let original = snapshot.villager(index)
             if villager.identity != original.identity && finalVillagers.enumerated().contains(where: { $0.offset != index && !$0.element.isEmpty && $0.element.identity == villager.identity }) { throw SaveError("This villager already lives on your island.") }
             let offset = IslandLayout.villagers + index * IslandLayout.villagerSize
             if villager.species != original.species { main[offset] = villager.species }
             if villager.variant != original.variant { main[offset + 1] = villager.variant }
             if villager.personality != original.personality { main[offset + 2] = villager.personality }
-            if villager.catchphrase != original.catchphrase {
-                var text = Data(villager.catchphrase.data(using: .utf16LittleEndian)!)
-                text.append(Data(repeating: 0, count: 48 - text.count))
-                main.replaceSubrange((offset + 0x10794)..<(offset + 0x107C4), with: text)
-            }
             if villager.movingOut != original.movingOut {
                 main[offset + 0x1267A] = (main[offset + 0x1267A] & ~2) | (villager.movingOut ? 2 : 0)
             }
             for memory in 0..<8 where villager.friendship[memory] != original.friendship[memory] {
                 guard !snapshot.memoryName(villager: index, memory: memory).isEmpty else { throw SaveError("Friendship can only be changed for an existing player memory.") }
                 main[offset + 4 + memory * 0x5F0 + 0x42] = villager.friendship[memory]
+            }
+        }
+        for (index, languages) in phrases {
+            guard (0..<10).contains(index), !snapshot.villager(index).isEmpty else { throw SaveError("Catchphrases can only be changed for an existing resident.") }
+            let offset = IslandLayout.villagers + index * IslandLayout.villagerSize
+            for (language, catchphrase) in languages {
+                guard VillagerPhraseLanguage.names.indices.contains(language), catchphrase.utf16.count <= VillagerPhraseLanguage.maxUnits, !catchphrase.contains("\0") else { throw SaveError("Invalid catchphrase. Catchphrases allow \(VillagerPhraseLanguage.maxUnits) UTF-16 units.") }
+                let start = offset + VillagerPhraseLanguage.base + language * VillagerPhraseLanguage.size
+                var text = Data(catchphrase.data(using: .utf16LittleEndian)!)
+                text.append(Data(repeating: 0, count: VillagerPhraseLanguage.size - text.count))
+                main.replaceSubrange(start..<(start + VillagerPhraseLanguage.size), with: text)
             }
         }
     }
@@ -181,7 +214,13 @@ public struct IslandSnapshot {
     public func villager(_ index: Int, edits: IslandEdits = .init()) -> VillagerEdit {
         if let record = edits.villagers[index] { return record }
         let offset = IslandLayout.villagers + index * IslandLayout.villagerSize
-        return VillagerEdit(species: main[offset], variant: main[offset + 1], personality: main[offset + 2], catchphrase: string(at: offset + 0x10794, units: 24), movingOut: main[offset + 0x1267A] & 2 != 0, friendship: (0..<8).map { main[offset + 4 + $0 * 0x5F0 + 0x42] })
+        return VillagerEdit(species: main[offset], variant: main[offset + 1], personality: main[offset + 2], movingOut: main[offset + 0x1267A] & 2 != 0, friendship: (0..<8).map { main[offset + 4 + $0 * 0x5F0 + 0x42] })
+    }
+    public func catchphrase(villager index: Int, language: Int = VillagerPhraseLanguage.current, edits: IslandEdits = .init()) -> String {
+        let slot = VillagerPhraseLanguage.names.indices.contains(language) ? language : 1
+        if let phrase = edits.phrases[index]?[slot] { return phrase }
+        let offset = IslandLayout.villagers + index * IslandLayout.villagerSize
+        return string(at: offset + VillagerPhraseLanguage.base + slot * VillagerPhraseLanguage.size, units: VillagerPhraseLanguage.units)
     }
     public func memoryName(villager: Int, memory: Int) -> String { string(at: IslandLayout.villagers + villager * IslandLayout.villagerSize + 4 + memory * 0x5F0 + 0x20, units: 10) }
     private func string(at offset: Int, units: Int) -> String {
@@ -257,7 +296,11 @@ public struct IslandSnapshot {
             let offset = IslandLayout.villagers + index * IslandLayout.villagerSize
             main[offset] = UInt8(species); main[offset + 1] = UInt8(variant); main[offset + 2] = UInt8(personality)
             let text = Data(phrase.data(using: .utf16LittleEndian)!)
-            main.replaceSubrange((offset + 0x10794)..<(offset + 0x10794 + text.count), with: text)
+            // The example island has no localized defaults; fill every language slot so the demo reads in any UI language.
+            for language in 0..<VillagerPhraseLanguage.count {
+                let start = offset + VillagerPhraseLanguage.base + language * VillagerPhraseLanguage.size
+                main.replaceSubrange(start..<(start + text.count), with: text)
+            }
             let name = Data("Player".data(using: .utf16LittleEndian)!)
             main.replaceSubrange((offset + 0x24)..<(offset + 0x24 + name.count), with: name)
             main[offset + 0x46] = 75

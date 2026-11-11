@@ -90,17 +90,19 @@ final class IslandEditorTests: XCTestCase {
     func testVillagerRoundTripPreservesHouseMemoriesAndMoveBits() throws {
         let session = try SaveSession(folder: folder), world = IslandSnapshot(main: session.main)
         var draft = session.initial, villager = world.villager(0)
-        villager.variant = 1; villager.personality = 2; villager.catchphrase = "Hello 🌴"; villager.movingOut = true; villager.friendship[0] = 200
+        villager.variant = 1; villager.personality = 2; villager.movingOut = true; villager.friendship[0] = 200
         draft.island.villagers[0] = villager
+        draft.island.phrases[0] = [1: "Hello 🌴"]
         let destination = root.appendingPathComponent("Edited")
         try session.export(draft, to: destination)
         let reopened = try SaveSession(folder: destination), changed = IslandSnapshot(main: reopened.main)
         XCTAssertEqual(changed.villager(0), villager)
+        XCTAssertEqual(changed.catchphrase(villager: 0, language: 1), "Hello 🌴")
         XCTAssertEqual(changed.memoryName(villager: 0, memory: 0), "Player")
         XCTAssertEqual(reopened.main[0x120 + 0x1267A], 0x82)
         XCTAssertEqual(reopened.main[0x481D20], 0xBD)
         let offset = 0x120
-        assertOnlyChanges(session.main, reopened.main, ranges: [offset..<(offset + 3), (offset + 0x10794)..<(offset + 0x107C4), (offset + 0x1267A)..<(offset + 0x1267B), (offset + 0x46)..<(offset + 0x47)])
+        assertOnlyChanges(session.main, reopened.main, ranges: [offset..<(offset + 3), (offset + 0x10794)..<(offset + 0x107C0), (offset + 0x1267A)..<(offset + 0x1267B), (offset + 0x46)..<(offset + 0x47)])
     }
     func testOutdoorItemFootprintsAndExtensionRemovalOnBothLayers() throws {
         let world = IslandSnapshot.preview()
@@ -183,7 +185,7 @@ final class IslandEditorTests: XCTestCase {
         let session = try SaveSession(folder: folder), world = IslandSnapshot(main: session.main)
         var draft = session.initial, tile = world.terrain(100)
         tile.path = 0x94; draft.island.terrain[100] = tile
-        var animal = world.villager(0); animal.catchphrase = "Testing"; draft.island.villagers[0] = animal
+        draft.island.phrases[0] = [1: "Testing"]
         let item = try PocketItem.make(id: 0x9C9, quantity: 3, maxStack: 30)
         draft.island = try world.dropping(item, at: IslandLayout.fieldIndex(x: 100, y: 100, layer: 0), edits: draft.island)
         let backupRoot = root.appendingPathComponent("Backups")
@@ -222,11 +224,13 @@ final class IslandEditorTests: XCTestCase {
     }
     func testUTF16LimitsAndEmptyMemoryGuards() throws {
         let session = try SaveSession(folder: folder), world = IslandSnapshot(main: session.main)
-        var draft = session.initial, animal = world.villager(0)
-        animal.catchphrase = String(repeating: "🌴", count: 13); draft.island.villagers[0] = animal
+        var draft = session.initial
+        draft.island.phrases[0] = [1: String(repeating: "🌴", count: 11)]
         XCTAssertThrowsError(try session.encoded(draft))
-        animal.catchphrase = String(repeating: "🌴", count: 12); draft.island.villagers[0] = animal
+        draft.island.phrases[0] = [1: String(repeating: "🌴", count: 10)]
         XCTAssertNoThrow(try session.encoded(draft))
+        draft.island.phrases[0] = nil
+        var animal = world.villager(0)
         animal.friendship[1] = 200; draft.island.villagers[0] = animal
         XCTAssertThrowsError(try session.encoded(draft))
         draft.island = .init(); draft.island.villagers[3] = world.villager(0)
@@ -257,13 +261,13 @@ final class IslandEditorTests: XCTestCase {
             let identity = identities[(index + 1) % 10]
             animal.species = UInt8(identity / 256); animal.variant = UInt8(identity % 256)
             animal.personality = UInt8(index % 9)
-            animal.catchphrase = index == 9 ? String(repeating: "🌴", count: 12) : "Resident \(index + 1)"
             animal.movingOut.toggle()
             animal.friendship[0] = index.isMultiple(of: 2) ? 0 : 255
             animal.friendship[7] = index.isMultiple(of: 2) ? 255 : 0
             draft.island.villagers[index] = animal
+            draft.island.phrases[index] = [1: index == 9 ? String(repeating: "🌴", count: 10) : "Resident \(index + 1)"]
             let offset = 0x120 + index * 0x13230
-            ranges += [offset..<(offset + 3), (offset + 0x10794)..<(offset + 0x107C4),
+            ranges += [offset..<(offset + 3), (offset + 0x10794)..<(offset + 0x107C0),
                        (offset + 0x1267A)..<(offset + 0x1267B), (offset + 0x46)..<(offset + 0x47),
                        (offset + 0x46 + 7 * 0x5F0)..<(offset + 0x47 + 7 * 0x5F0)]
         }
@@ -272,6 +276,7 @@ final class IslandEditorTests: XCTestCase {
         let reopened = try SaveSession(folder: destination), changed = IslandSnapshot(main: reopened.main)
         for index in 0..<10 {
             XCTAssertEqual(changed.villager(index), draft.island.villagers[index])
+            XCTAssertEqual(changed.catchphrase(villager: index, language: 1), draft.island.phrases[index]?[1])
             XCTAssertEqual(changed.memoryName(villager: index, memory: 0), "Player")
             XCTAssertEqual(changed.memoryName(villager: index, memory: 7), "Guest")
             let flag = 0x120 + index * 0x13230 + 0x1267A
@@ -283,23 +288,23 @@ final class IslandEditorTests: XCTestCase {
     }
 
     func testCatchphraseShorteningClearsTrailingUTF16Storage() throws {
-        let session = try SaveSession(folder: folder), world = IslandSnapshot(main: session.main)
-        var draft = session.initial, animal = world.villager(0)
-        animal.catchphrase = String(repeating: "🌴", count: 12)
-        draft.island.villagers[0] = animal
+        let session = try SaveSession(folder: folder)
+        var draft = session.initial
+        let phrase = String(repeating: "🌴", count: 10)
+        draft.island.phrases[0] = [1: phrase]
         let full = root.appendingPathComponent("FullPhrase")
         try session.export(draft, to: full)
         let reopened = try SaveSession(folder: full)
-        XCTAssertEqual(IslandSnapshot(main: reopened.main).villager(0).catchphrase, animal.catchphrase)
+        XCTAssertEqual(IslandSnapshot(main: reopened.main).catchphrase(villager: 0, language: 1), phrase)
         for text in ["é", ""] {
             var next = reopened.initial
-            animal.catchphrase = text; next.island.villagers[0] = animal
+            next.island.phrases[0] = [1: text]
             let output = try reopened.encoded(next)
             let plain = try SaveCodec.crypt(output["main.dat"]!, header: Self.files["mainHeader.dat"]!)
-            let storage = plain.subdata(in: (0x120 + 0x10794)..<(0x120 + 0x107C4))
+            let storage = plain.subdata(in: (0x120 + 0x10794)..<(0x120 + 0x107C0))
             let prefix = text.data(using: .utf16LittleEndian)!
-            XCTAssertEqual(storage, prefix + Data(repeating: 0, count: 48 - prefix.count))
-            XCTAssertEqual(IslandSnapshot(main: plain).villager(0).catchphrase, text)
+            XCTAssertEqual(storage, prefix + Data(repeating: 0, count: 44 - prefix.count))
+            XCTAssertEqual(IslandSnapshot(main: plain).catchphrase(villager: 0, language: 1), text)
         }
     }
 
@@ -310,11 +315,24 @@ final class IslandEditorTests: XCTestCase {
             var animal = world.villager(0); animal.friendship = Array(repeating: 0, count: size); invalid.append(animal)
         }
         var animal = world.villager(0); animal.personality = 9; invalid.append(animal)
-        animal = world.villager(0); animal.catchphrase = "Hi\0there"; invalid.append(animal)
-        animal = world.villager(0); animal.catchphrase = String(repeating: "🌴", count: 13); invalid.append(animal)
         for (index, record) in invalid.enumerated() {
             var draft = session.initial; draft.island.villagers[0] = record
             let destination = root.appendingPathComponent("Invalid\(index)")
+            XCTAssertThrowsError(try session.export(draft, to: destination))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+        }
+        let badPhrases: [[Int: String]] = [
+            [1: "Hi\0there"],
+            [1: String(repeating: "🌴", count: 11)],
+            [-1: "Hi"],
+            [11: "Hi"]
+        ]
+        var badDrafts = badPhrases.map { phrases -> SaveDraft in
+            var draft = session.initial; draft.island.phrases[0] = phrases; return draft
+        }
+        var badIndex = session.initial; badIndex.island.phrases[10] = [1: "Hi"]; badDrafts.append(badIndex)
+        for (index, draft) in badDrafts.enumerated() {
+            let destination = root.appendingPathComponent("InvalidPhrase\(index)")
             XCTAssertThrowsError(try session.export(draft, to: destination))
             XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
         }
@@ -374,6 +392,48 @@ final class IslandEditorTests: XCTestCase {
             XCTAssertThrowsError(try session.encoded(draft))
         }
     }
+    func testCatchphraseWritesTheLanguageSlot() throws {
+        let session = try SaveSession(folder: folder), world = IslandSnapshot(main: session.main)
+        var draft = session.initial
+        draft.island.phrases[0] = [9: "你好"]
+        let destination = root.appendingPathComponent("ChinesePhrase")
+        try session.export(draft, to: destination)
+        let reopened = try SaveSession(folder: destination), changed = IslandSnapshot(main: reopened.main)
+        XCTAssertEqual(changed.catchphrase(villager: 0, language: 9), "你好")
+        XCTAssertEqual(changed.catchphrase(villager: 0, language: 1), world.catchphrase(villager: 0, language: 1))
+        XCTAssertEqual(changed.catchphrase(villager: 0, language: 10), world.catchphrase(villager: 0, language: 10))
+        let start = 0x120 + VillagerPhraseLanguage.base + 9 * VillagerPhraseLanguage.size
+        assertOnlyChanges(session.main, reopened.main, ranges: [start..<(start + VillagerPhraseLanguage.size)])
+        try session.ensureUnchanged()
+    }
+
+    func testMultipleCatchphraseLanguagesSurviveExport() throws {
+        let session = try SaveSession(folder: folder), world = IslandSnapshot(main: session.main)
+        var draft = session.initial
+        draft.island.phrases[0] = [1: "Hello", 9: "你好", 10: "妳好"]
+        let destination = root.appendingPathComponent("ThreeLanguages")
+        try session.export(draft, to: destination)
+        let changed = IslandSnapshot(main: try SaveSession(folder: destination).main)
+        for (language, text) in [1: "Hello", 9: "你好", 10: "妳好"] {
+            XCTAssertEqual(changed.catchphrase(villager: 0, language: language), text)
+        }
+        for language in [0, 2, 3, 4, 5, 6, 7, 8] {
+            XCTAssertEqual(changed.catchphrase(villager: 0, language: language), world.catchphrase(villager: 0, language: language))
+        }
+        try session.ensureUnchanged()
+    }
+
+    func testPhraseLanguageSelection() {
+        XCTAssertEqual(VillagerPhraseLanguage.index(for: "en-US"), 1)
+        XCTAssertEqual(VillagerPhraseLanguage.index(for: "ja-JP"), 0)
+        XCTAssertEqual(VillagerPhraseLanguage.index(for: ["zh", "Hant"].joined(separator: "-")), 10)
+        XCTAssertEqual(VillagerPhraseLanguage.index(for: "zh-Hans-CN"), 9)
+        XCTAssertEqual(VillagerPhraseLanguage.index(for: ["zh", "Hans", "HK"].joined(separator: "-")), 9)
+        XCTAssertEqual(VillagerPhraseLanguage.index(for: ["zh", "HK"].joined(separator: "-")), 10)
+        XCTAssertEqual(VillagerPhraseLanguage.index(for: "ko-KR"), 8)
+        XCTAssertEqual(VillagerPhraseLanguage.index(for: "pt-BR"), 1)
+    }
+
     private func assertOnlyChanges(_ before: Data, _ after: Data, ranges: [Range<Int>], file: StaticString = #filePath, line: UInt = #line) {
         var normalized = after
         for range in ranges + SaveLayout.mainRegions.map({ $0.offset..<($0.offset + 4) }) { normalized.replaceSubrange(range, with: before.subdata(in: range)) }
